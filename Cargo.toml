@@ -1,0 +1,35 @@
+[package]
+name = "scratchstack-wrapper-aws-c-compression"
+description = "Scratchstack Rust wrapper around aws-c-compression library"
+authors = ["David Cuthbert <dacut@kanga.org>"]
+edition = "2021"
+homepage = "https://github.com/dacut/scratchstack-wrapper-aws-c-compression"
+license = "Apache-2.0"
+repository = "https://github.com/dacut/scratchstack-wrapper-aws-c-compression"
+version = "0.1.0-alpha.5"
+build = "build.rs"
+include = [
+    "/include/aws/compression/*.h",
+    "/include/aws/compression/*.inl",
+    "/src",
+    "Cargo.toml",
+    "build.rs",
+]
+
+[lib]
+name = "scratchstack_wrapper_aws_c_compression"
+crate-type = ["lib"]
+doctest = false
+
+[build-dependencies]
+bindgen = "^0.61"
+
+[dependencies]
+scratchstack-wrapper-aws-c-common = "=0.1.0-alpha.5"
+libc = "^0.2"
+
+[dev-dependencies]
+env_logger = "^0.9"
+log = "^0.4"
+pretty_assertions = "^1.3"
+test-log = "^0.2"
