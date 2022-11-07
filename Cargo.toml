@@ -6,8 +6,9 @@ edition = "2021"
 homepage = "https://github.com/dacut/scratchstack-wrapper-aws-c-compression"
 license = "Apache-2.0"
 repository = "https://github.com/dacut/scratchstack-wrapper-aws-c-compression"
-version = "0.1.0-alpha.5"
+version = "0.1.0-alpha.6"
 build = "build.rs"
+links = "aws-c-compression"
 include = [
     "/include/aws/compression/*.h",
     "/include/aws/compression/*.inl",
