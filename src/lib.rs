@@ -4,7 +4,6 @@
 //! Rust wrapper for the `aws-c-common` library. For testing purposes only.
 //! For interacting with AWS services, use the `aws-sdk-rust` crate instead.
 
-include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
+use scratchstack_wrapper_aws_c_common::{aws_allocator, aws_byte_buf, aws_byte_cursor};
 
-mod sync_ptr;
-pub use sync_ptr::SyncPtr;
+include!(concat!(env!("OUT_DIR"), "/bindings.rs"));

@@ -3,21 +3,58 @@ use {
     std::{
         env::var,
         fs::{copy, create_dir_all, read_dir},
-        path::PathBuf,
+        path::{Path, PathBuf},
     },
 };
+
+const LINK_LIBS: &str = r#"
+aws-c-compression
+aws-c-common
+"#;
+const INCLUDE_PATH: &str = "aws/compression";
+const DEP_LIBRARIES: &str = "aws-c-common";
+const FUNCTIONS: &str = r#"
+aws_compression_library_init
+aws_compression_library_clean_up
+aws_huffman_encoder_init
+aws_huffman_encoder_reset
+aws_huffman_decoder_init
+aws_huffman_decoder_reset
+aws_huffman_get_encoded_length
+aws_huffman_encode
+aws_huffman_decode
+aws_huffman_decoder_allow_growth
+"#;
+const TYPES: &str = r#"
+aws_compression_error
+aws_huffman_code
+aws_huffman_symbol_encoder_fn
+aws_huffman_symbol_decoder_fn
+aws_huffman_symbol_coder
+aws_huffman_encoder
+aws_huffman_decoder
+"#;
+
+const VARS: &str = "";
+
+fn get_include_dir<P: AsRef<Path>>(dir: P) -> PathBuf {
+    let mut result = PathBuf::from(dir.as_ref());
+
+    for folder in INCLUDE_PATH.split('/') {
+        result.push(folder);
+    }
+
+    result
+}
 
 fn main() {
     let root = PathBuf::from(var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR not set"));
     let out_dir = PathBuf::from(var("OUT_DIR").expect("OUT_DIR not set"));
-    let aws_c_common_include_dir =
-        PathBuf::from(var("DEP_AWS_C_COMMON_INCLUDE").expect("DEP_AWS_C_COMMON_INCLUDE not set"));
-    let aws_c_common_include_dir_str = aws_c_common_include_dir.to_string_lossy();
 
     let src_include_dir = root.join("include");
     let dst_include_dir = out_dir.join("include");
-    let src_lib_include_dir = src_include_dir.join("aws").join("compression");
-    let dst_lib_include_dir = dst_include_dir.join("aws").join("compression");
+    let src_lib_include_dir = get_include_dir(&src_include_dir);
+    let dst_lib_include_dir = get_include_dir(&dst_include_dir);
     let src_include_dir_str = src_include_dir.to_string_lossy();
     let dst_include_dir_str = dst_include_dir.to_string_lossy();
     let src_lib_include_dir_str = src_lib_include_dir.to_string_lossy();
@@ -31,7 +68,12 @@ fn main() {
         println!("cargo:rustc-link-search={aws_crt_prefix}/lib");
     }
 
-    println!("cargo:rustc-link-lib=aws-c-compression");
+    for library_name in LINK_LIBS.split('\n') {
+        let library_name = library_name.trim();
+        if !library_name.is_empty() {
+            println!("cargo:rustc-link-lib={library_name}");
+        }
+    }
 
     // Copy include files over
     create_dir_all(&dst_lib_include_dir)
@@ -39,11 +81,23 @@ fn main() {
 
     let mut builder = builder()
         .clang_arg(format!("-I{src_include_dir_str}"))
-        .clang_arg(format!("-I{aws_c_common_include_dir_str}"))
         .derive_debug(true)
         .derive_default(true)
         .derive_partialeq(true)
-        .derive_eq(true);
+        .derive_eq(true)
+        .allowlist_recursively(false); // Don't dive into dependent libraries.
+    
+    for dep in DEP_LIBRARIES.split('\n') {
+        let dep = dep.trim();
+        if dep.is_empty() {
+            continue;
+        }
+
+        let dep = String::from(dep).replace('-', "_").to_uppercase();
+        let dep_include_dir = PathBuf::from(var(format!("DEP_{dep}_INCLUDE")).unwrap_or_else(|_| panic!("DEP_{dep}_INCLUDE not set")));
+        let dep_include_dir_str = dep_include_dir.to_string_lossy();
+        builder = builder.clang_arg(format!("-I{dep_include_dir_str}"));
+    }
 
     let mut n_includes = 0;
 
@@ -76,10 +130,29 @@ fn main() {
     }
 
     if n_includes == 0 {
-        panic!("No header files found in include/aws/common");
+        panic!("No header files found in {src_lib_include_dir_str}");
     }
 
-    builder = builder.allowlist_function("aws_.*").allowlist_type("aws_.*").allowlist_var("aws_.*");
+    for function_pattern in FUNCTIONS.split('\n') {
+        let function_pattern = function_pattern.trim();
+        if !function_pattern.is_empty() {
+            builder = builder.allowlist_function(function_pattern);
+        }
+    }
+
+    for type_pattern in TYPES.split('\n') {
+        let type_pattern = type_pattern.trim();
+        if !type_pattern.is_empty() {
+            builder = builder.allowlist_type(type_pattern);
+        }
+    }
+
+    for var_pattern in VARS.split('\n') {
+        let var_pattern = var_pattern.trim();
+        if !var_pattern.is_empty() {
+            builder = builder.allowlist_var(var_pattern);
+        }
+    }
 
     let bindings_filename = out_dir.join("bindings.rs");
     let bindings = builder.generate().expect("Unable to generate bindings");
